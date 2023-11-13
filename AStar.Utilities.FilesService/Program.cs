@@ -1,9 +1,35 @@
-﻿namespace AStar.Utilities.FilesService;
+﻿using System.IO.Abstractions;
+using AStar.Utilities.FilesService.Models;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Serilog;
 
-internal class Program
+namespace AStar.Utilities.FilesService;
+
+internal static class Program
 {
-    static void Main(string[] args)
+    internal static async Task Main(string[] args)
     {
-        Console.WriteLine("Hello, World!");
+        var host = ConfigureServices(args);
+        var options = host.Services.GetRequiredService<IOptions<ConfigurationSettings>>();
+        var logger = host.Services.GetRequiredService<ILogger<WorkerService>>();
+        var fileSystem = host.Services.GetRequiredService<IFileSystem>();
+
+        var workerService = new WorkerService(fileSystem, options, logger);
+
+        await workerService.ExecuteAsync(CancellationToken.None);
     }
+
+    private static IHost ConfigureServices(string[] args) =>
+        Host.CreateDefaultBuilder(args)
+            .ConfigureServices((context, services) =>
+            {
+                _ = services.Configure<ConfigurationSettings>(
+                    context.Configuration.GetSection(ConfigurationSettings.SettingName));
+                _ = services.AddScoped<IFileSystem, FileSystem>();
+            })
+            .UseSerilog((context, configuration) => { _ = configuration.ReadFrom.Configuration(context.Configuration); })
+            .Build();
 }
